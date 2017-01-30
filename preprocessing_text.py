@@ -6,10 +6,8 @@ Used in most of my other scripts
 """
 
 import ast
-from autocorrect import spell
 from collections import Counter
 from functools32 import lru_cache
-import gensim
 from gensim import corpora
 import glob
 import nltk
@@ -49,7 +47,7 @@ def clean_and_tag(text, tokenizer, stop_words):
         return [('', '')]
 
     # Spell check, and filter for valid words
-    tokens = [spell(clean_repeated_chars(word)) for word
+    tokens = [clean_repeated_chars(word) for word
               in tokenizer.tokenize(text) if word not in stop_words and len(word) < 50]
     cleaned_tokens = [word.lower() for word in tokens if check_vowels(word) and len(word) < 25]
     tagged_tokens = nltk.pos_tag(cleaned_tokens)
@@ -181,13 +179,13 @@ def get_word_feature_data(dff, wordcount_dff=None, text_col='Comment', relevant_
     return features
 
 
-# Takes a column or series of tokens
+# Takes a list of tokens
 # returns the number of occurrences of each word
-def count_freq(tokens_col):
-    print 'count frequency'
-    words = [str(word.encode('ascii','ignore')) for sublist in list(tokens_col) for word in sublist]
+def count_freq(tokens_list):
+    words = [str(word.encode('ascii','ignore')) for word in list(tokens_list)]
     count_freq = dict(Counter(words))
     df = pd.DataFrame.from_dict(count_freq, orient='index')
+    df.sort_values(by=0, inplace=True, ascending=False)
     return df
 
 
@@ -219,8 +217,8 @@ def convert_string_to_list(str_rep_of_list):
 
 
 # Load a pickle file
-def load_file(file_name):
-    sm_data_path = '/Users/rchen/Downloads/data/'
+def load_file(file_name, path='/Users/rchen/Downloads/data/'):
+    sm_data_path = path
     print sm_data_path + file_name
     data_file = max(glob.iglob(sm_data_path + file_name), key=os.path.getctime)
 

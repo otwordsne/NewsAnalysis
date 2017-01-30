@@ -10,13 +10,14 @@ from nltk.tokenize import RegexpTokenizer
 import re
 import requests
 import urllib.request
+from urllib.request import Request, urlopen
 
 stopwords = set(['a', 'an', 'and', 'are', 'as', 'at', 'be', 'by',
                 'for', 'from', 'has', 'he,', 'in', 'is', 'it',
                 'its', "it's", 'of', 'on', 'that', 'the', 'to',
                 'was', 'were', 'will', 'with', 'you', 'have', 'been',
                 'her', 'hers', 'she', 'him', 'his', 'my', 'mine',
-                'this', 'these', 'their', 'theirs', 'them'])
+                'this', 'these', 'their', 'theirs', 'them', 'we'])
 
 class URL:
     def __init__( self, url):
@@ -30,13 +31,53 @@ class URL:
         soup = BeautifulSoup(html)
         return soup
 
+class AppURLopener(urllib.request.FancyURLopener):
+    version = "Mozilla/5.0"
+
+urllib._urlopener = AppURLopener()
+
 def get_soup(url):
-    html = urllib.request.urlopen(url)
+    #opener = AppURLopener()
+    req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+
+    html = urllib.request.urlopen(req)
+    #response = opener.open(url)
     soup = BeautifulSoup(html)
     return soup
 
+def get_usnews_headlines(url='http://www.usnews.com/'):
+    # html = urllib.urlopen(url)
+    soup = get_soup(url)
+    headlines = soup.findall('div', attrs={'class': 'flex-media block-normal small-middle \
+                                       medium-top, border-bottom-for-small-only \
+                                       padding-bottom-normal-for-small-only'})
+    if headlines is None:
+        print('Article not found.')
+        return
 
-def get_news_text(url):
+    text = [x.get_text() for x in headlines]
+    text = [re.sub('\n', '', x) for x in text]
+    text = [re.sub('\.', '', x) for x in text]
+    # text = ' '.join(p for p in text)
+    return text
+
+
+def get_googlenews_headlines(url='http://www.new.google.com/'):
+    # html = urllib.urlopen(url)
+    soup = get_soup(url)
+    headlines = soup.findall('h2', attrs={'class': 'esc-lead-article-title'})
+    if headlines is None:
+        print('Article not found.')
+        return
+
+    text = [x.get_text() for x in headlines]
+    text = [re.sub('\n', '', x) for x in text]
+    text = [re.sub('\.', '', x) for x in text]
+    # text = ' '.join(p for p in text)
+    return text
+
+
+def get_bloomberg_text(url):
     # html = urllib.urlopen(url)
     soup = get_soup(url)
     body = soup.find('div', attrs={'class': 'body-copy'})
@@ -44,10 +85,11 @@ def get_news_text(url):
         print('Article not found.')
         return
     text_w_tags = body.find_all('p', recursive=False)
-    text = [x.get_text() for x in text_w_tags]
-    text = [re.sub('\n', '', x) for x in text]
-    text = [re.sub('\.', '', x) for x in text]
+    text = [x.get_text() for x in text_w_tags if not x.find(class_='inline-newsletter')]
+    # text = [x.get_text() for x in text]
+    text = [re.sub("('|\n|\.)", '', x) for x in text]  # |(\n)+.*(\n)+)
     text = ' '.join(p for p in text)
+    text = str(text.encode('ascii', 'replace')).replace('?',' ').replace('-','')
     return text
 
 
@@ -112,8 +154,8 @@ def get_wordnet_pos(word_tag_tuple):
 def main():
     url1 = 'https://www.bloomberg.com/news/articles/2017-01-06/wall-street-is-starting-to-get-nervous-about-all-the-money-pouring-into-u-s-stocks'
     url2 = 'https://www.bloomberg.com/news/articles/2017-01-05/japan-shares-to-drop-on-yen-gain-u-s-jobs-loom-markets-wrap'
-    article1 = get_news_text(url1)
-    article2 = get_news_text(url2)
+    article1 = get_bloomberg_text(url1)
+    article2 = get_bloomberg_text(url2)
 
     tokenized_txt1 = remove_stopwords(article1)
     tokenized_txt2 = remove_stopwords(article2)
