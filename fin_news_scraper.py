@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 #import nltk
 from nltk.tokenize import word_tokenize
 from nltk.tokenize import RegexpTokenizer
+from gensim.summarization import summarize
 import re
 import requests
 import urllib.request
@@ -104,12 +105,15 @@ def get_bloomberg_text(url):
 def get_bloomberg_articles(url='https://bloomberg.com/'):
     soup = get_soup(url)
     links = soup.find_all('a')
-    articles = []
+    extensions = set(['www.bloomberg.com/news',
+                      'www.bloomberg.com/politics',
+                      'www.bloomberg.com/features'])
+    articles = set()
     for x in links:
         try:
-            if ('www.bloomberg.com/news' or 'www.bloomberg.com/politics' or 'www.bloomberg.com/features') in x['href']:
+            if any(valid_article in x['href'] for valid_article in extensions):
                 if 'video' not in x['href']:
-                    articles.append(x['href'])
+                    articles.add(x['href'])
         except Exception:
             pass
     # articles = [x['href'] for x in links if ('www.bloomberg/news' or 'www.bloomberg/politics') in x['href']]
@@ -121,12 +125,23 @@ def get_bloomberg_page_articles_text(url='https://www.bloomberg.com/'):
     texts = [x for x in texts if x is not None]
     return texts
 
-def get_all_bloomberg():
-    mainpages = set(['https://www.bloomberg.com/', 'https://www.bloomberg.com/politics',
-                    'https://www.bloomberg.com/markets', 'https://www.bloomberg.com/technology'])
-    texts = [(url,get_bloomberg_page_articles_text(url)) for url in mainpages]
-    texts = [x for sublist in texts for x in sublist]
-    return texts
+def get_all_bloomberg(main_extensions = ['politics', 'markets', 'technology']):
+    home = 'https://www.bloomberg.com/'
+    main_pages = [home]
+    for name in main_extensions:
+        main_pages.append(home + name)
+
+    # Find breaking news first
+    # breaking = find('h1', attrs= {'class': 'breaking-news-banner__headline'})
+    # breaking_headline = breaking.get_text()
+    page_dict = {}
+    page_dict['homepage'] = get_bloomberg_page_articles_text(home)
+    for url in main_extensions:
+        page_dict[url] = get_bloomberg_page_articles_text(home + url)
+
+    # texts = [(url,get_bloomberg_page_articles_text(url)) for url in mainpages]
+    # texts = [x for sublist in texts for x in sublist]
+    return page_dict
 
 def keep_words(text):
     text = text.lower()
