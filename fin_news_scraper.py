@@ -79,19 +79,54 @@ def get_googlenews_headlines(url='http://www.new.google.com/'):
 
 def get_bloomberg_text(url):
     # html = urllib.urlopen(url)
+    headline = re.sub('^.*\/','', re.sub('\/$','',url)).replace("'",'').replace(".","").replace('-',' ')
     soup = get_soup(url)
     body = soup.find('div', attrs={'class': 'body-copy'})
     if body is None:
-        print('Article not found.')
-        return
-    text_w_tags = body.find_all('p', recursive=False)
+        body = soup.find_all('div', attrs={'class': 'main__section'})
+        text_w_tags = [x.find_all('p', recursive=False) for x in body]
+        text_w_tags = [x for sublist in text_w_tags for x in sublist]
+
+        if body is None:
+            print('Article not found.')
+            return
+    else:
+        text_w_tags = body.find_all('p', recursive=False)
     text = [x.get_text() for x in text_w_tags if not x.find(class_='inline-newsletter')]
+    if text == '':
+        return
     # text = [x.get_text() for x in text]
     text = [re.sub("('|\n|\.)", '', x) for x in text]  # |(\n)+.*(\n)+)
     text = ' '.join(p for p in text)
     text = str(text.encode('ascii', 'replace')).replace('?',' ').replace('-','')
-    return text
+    return (headline, text)  # text  # (headline, text)
 
+def get_bloomberg_articles(url='https://bloomberg.com/'):
+    soup = get_soup(url)
+    links = soup.find_all('a')
+    articles = []
+    for x in links:
+        try:
+            if ('www.bloomberg.com/news' or 'www.bloomberg.com/politics' or 'www.bloomberg.com/features') in x['href']:
+                if 'video' not in x['href']:
+                    articles.append(x['href'])
+        except Exception:
+            pass
+    # articles = [x['href'] for x in links if ('www.bloomberg/news' or 'www.bloomberg/politics') in x['href']]
+    return articles
+
+def get_bloomberg_page_articles_text(url='https://www.bloomberg.com/'):
+    article_urls = get_bloomberg_articles(url)
+    texts = [get_bloomberg_text(x) for x in article_urls]
+    texts = [x for x in texts if x is not None]
+    return texts
+
+def get_all_bloomberg():
+    mainpages = set(['https://www.bloomberg.com/', 'https://www.bloomberg.com/politics',
+                    'https://www.bloomberg.com/markets', 'https://www.bloomberg.com/technology'])
+    texts = [(url,get_bloomberg_page_articles_text(url)) for url in mainpages]
+    texts = [x for sublist in texts for x in sublist]
+    return texts
 
 def keep_words(text):
     text = text.lower()
