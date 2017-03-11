@@ -80,7 +80,7 @@ def get_googlenews_headlines(url='http://www.new.google.com/'):
 
 def get_bloomberg_text(url):
     # html = urllib.urlopen(url)
-    headline = re.sub('^.*\/','', re.sub('\/$','',url)).replace("'",'').replace(".","").replace('-',' ')
+    headline = re.sub('^.*\/','', re.sub('\/$','',url)).replace("'",'').replace('-',' ')
     soup = get_soup(url)
     body = soup.find('div', attrs={'class': 'body-copy'})
     if body is None:
@@ -96,10 +96,9 @@ def get_bloomberg_text(url):
     text = [x.get_text() for x in text_w_tags if not x.find(class_='inline-newsletter')]
     if text == '':
         return
-    # text = [x.get_text() for x in text]
-    text = [re.sub("('|\n|\.)", '', x) for x in text]  # |(\n)+.*(\n)+)
+    text = [re.sub("('|\n)", '', x) for x in text]  # |(\n)+.*(\n)+)
     text = ' '.join(p for p in text)
-    text = str(text.encode('ascii', 'replace')).replace('?',' ').replace('-','')
+    text = str(text.encode('ascii', 'ignore')).replace('-','')  # ignore the unencodable strings
     return (headline, text)  # text  # (headline, text)
 
 def get_bloomberg_articles(url='https://bloomberg.com/'):
@@ -149,15 +148,15 @@ def keep_words(text):
     return text
 
 
-def get_keep_words():
-    keepwords = set(['s&p500', '&'])
-    return keepwords
+#def get_keep_words():
+#    keepwords = set(['s&p500', '&'])
+#    return keepwords
 
 
 # Removes the stopwords from
 def remove_stopwords(text):
     text = keep_words(text)
-    keepwords = get_keep_words()
+    # keepwords = get_keep_words()
     # stop = set(stopwords.words('english'))
     # stop = stop.difference(keepwords)
     stop = stopwords
@@ -168,7 +167,10 @@ def remove_stopwords(text):
     # cleaned_tokens = [word for word in tokens if word not in stopwords]
     return cleaned_tokens
 
-
+def splitBySentence(text):
+    endPunc = re.compile('[.!]')
+    sentList = endPunc.split(text)
+    return sentList
 '''
 def remove_links(text):
     webpage = re.compile(r'\s\S*\.[gov|com|org]')
@@ -179,6 +181,65 @@ def remove_links(text):
     # tokens = [toke for toke in tokens if not (webpage.match(toke) or weird.match(toke))]
     # return tokens
 '''
+
+def countWords(tokenizedText):
+    wordCounts = {}
+    for word in tokenizedText:
+        if word in wordCounts.keys():
+            wordCounts[word] += 1
+        else:
+            wordCounts[word] = 1
+    wordCounts = sorted(wordsCounts).reverse()
+    return wordCounts
+
+# Score a sentence by a list of top words
+def scoreSentByTopWords(sentence, topWords):
+    score = 0
+    for word in topWords:
+        if word in sentence:
+            score += sentence.count(word)
+    return score
+
+# Score a sentence by a list of top words according to how heavily the word is weighted
+def scoreSentByWordWeights(sentence, topWordsDict):
+    score = 0
+    for word in topWord.keys():
+        if word in sentence:
+            score += (sentence.count(word) * topWordsDict[word])
+    return score
+
+def findMinSent(sentScoreDict):
+   min = ('', -1)
+   for sent in sentScoreDict.keys():
+       if (sentScoreDict[sent] < min[1] or min[1] == -1):
+           minSent = (sent, sentScoreDict[sent])
+   return minSent
+
+# Summary text by the score of top words in each sentence
+def summarizeByTopWords(text, topWords, sentsInSummary = 3):
+    sentScores = {}
+    sentences = splitBySentence(text)
+    topSents = {}
+    #max = 0
+    for sent in sentences:
+        score = scoreSentByTopWords(sent, topWords)
+        if sent in sentScores.keys():
+            sentScores[sent] += score
+        else:
+            sentScores[sent] = score
+ 
+        if (len(topSents.keys()) < sentsInSummary):
+            topSents[sent] = sentScores[sent]
+        else:
+            minSent = findMinSent(topSents)
+            if (sentScores[sent] >= minSent[1]):
+                topSents[sent] = sentScores[sent]
+                del topSents[minSent[0]]
+    return ' '.join(list(topSents.keys()))
+            
+def summarize(text, topWordsTuples, numWordsToScore = 5):
+    return summarizeByTopWords(text,[word[0] for word in topWordsTuples[0:numWordsToScore]]) 
+        
 
 def clean_text(text):
     text = re.sub('\u2014','--', text)
@@ -207,8 +268,8 @@ def main():
     article1 = get_bloomberg_text(url1)
     article2 = get_bloomberg_text(url2)
 
-    tokenized_txt1 = remove_stopwords(article1)
-    tokenized_txt2 = remove_stopwords(article2)
+    tokenized_txt1 = remove_stopwords(article1[1])
+    tokenized_txt2 = remove_stopwords(article2[1])
 
     tagged_txt1 = nltk.pos_tag(tokenized_txt1)
     tagged_txt2 = nltk.pos_tag(tokenized_txt2)
