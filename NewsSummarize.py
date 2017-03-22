@@ -5,13 +5,14 @@ Give you the articles with sentiment above a certain threshold magnitude
 """
 from bs4 import BeautifulSoup
 #import nltk
-from nltk.tokenize import word_tokenize
+#from nltk.tokenize import word_tokenize
 from nltk.tokenize import RegexpTokenizer
 #from gensim.summarization import summarize
 import re
 import requests
 import urllib.request
 from urllib.request import Request, urlopen
+import operator 
 
 stopwords = set(['a', 'an', 'and', 'are', 'as', 'at', 'be', 'by',
                 'for', 'from', 'has', 'he,', 'in', 'is', 'it',
@@ -47,18 +48,13 @@ def get_usatoday_headlines(url="http://www.usatoday.com"):
     cleaned_texts = [strip_usatoday(article) for article in headline_texts]
     return cleaned_texts
 
-extensions = headlines.findAll("a")
-top_article_links = [story['href'] for story in extensions if "watch-live" not in story['href']]
-headline_urls = [url + exten for exten in top_article_links if not exten.startswith("http")]
-headline_soups = [get_soup(link) for link in headline_urls]
-headline_texts = [" ".join([ptag.get_text() for ptag in s.findAll("p")]) for s in headline_soups]
-cleaned_texts = [re.sub("^[\w|\s]+\n","",article) for article in headline_texts]
+# Remove irrelevant text from the usatoday article text
 def strip_usatoday(text):
     garbage = ["Settings Cancel Set Hi  Already a subscriber? Subscribe to USA TODAY Already a print edition subscriber, but don't have a login? Manage your account settings. Log Out  Get the news Let friends in your social network know what you are reading about", "A link has been posted to your Facebook feed.", "To find out more about Facebook commenting please read the Conversation Guidelines and FAQs", "A link has been sent to your friend\'s email address"]
     for s in garbage:
-        text = text.replace(s, "")
-#    text = text.replace(garbage, "")
+        text = text.replace(s, "").replace("  ", " ")
     return text
+
 def get_googlenews_headlines(url='http://www.new.google.com/'):
     # html = urllib.urlopen(url)
     soup = get_soup(url)
@@ -143,22 +139,15 @@ def keep_words(text):
     text = re.sub('s&p 500', 's&p500', text)
     return text
 
-
-#def get_keep_words():
-#    keepwords = set(['s&p500', '&'])
-#    return keepwords
-
-
 # Removes the stopwords from
 def remove_stopwords(text):
     text = keep_words(text)
     stop = stopwords
     text = text.lower()
-    # tokenizer = get_tokenizer("en_US")
     tokenizer = RegexpTokenizer(r'\w+\&*\w*')
     cleaned_tokens = [str(word) for word in tokenizer.tokenize(text) if word not in stop]
-    # cleaned_tokens = [word for word in tokens if word not in stopwords]
     return cleaned_tokens
+
 # Split text by sentence
 def splitBySentence(text):
     endPunc = re.compile('[.!]')
@@ -173,7 +162,7 @@ def countWords(tokenizedText):
             wordCounts[word] += 1
         else:
             wordCounts[word] = 1
-    wordCounts = sorted(wordCounts.items(), key=operator.itemgetter(1))
+    wordCounts = sorted(wordCounts.items(), key=operator.itemgetter(1), reverse = True)
     return wordCounts
 
 # Score a sentence by a list of top words
@@ -221,17 +210,26 @@ def summarizeByTopWords(text, topWords, sentsInSummary = 3):
             if (sentScores[sent] >= minSent[1]):
                 topSents[sent] = sentScores[sent]
                 del topSents[minSent[0]]
-    return ' '.join(list(topSents.keys()))
+    return '. '.join(list(topSents.keys()))
             
-# wordCountDict is sorted ascending order
-def summary(text, wordCountDict, numWordsToUse = 5, sentsInSummary = 3):
+# wordCountDict is sorted descending order
+def summary(text, numWordsToUse = 5, sentsInSummary = 3):
     #if numWordsToUse < 1:
-    assert(numWordsToUse > 1), "Number of words to score with must be greater than 1"
-    topWords = wordCountDict[-1*(numWordsToUse):-1]
+    assert(numWordsToUse > 1), "Number of words to score with must be greater than 1."
+    assert(sentsInSummary > 0), "Number of sentences in summary must be at least 1."
+    wordCountDict = countWords(text)
+    topWords = wordCountDict[0:numWordsToUse]
     topWords.append(wordCountDict[-1])
     topWords = dict(topWords)
     return summarizeByTopWords(text, topWords, sentsInSummary)
     
+# Get a summary of all the top headlines in USA Today
+def usaToday_top_summary():
+    usatoday_stories = get_usatoday_headlines()
+    all_summaries = [summary(story) for story in usatoday_stories]
+    for summ in all_summaries:
+        print(summ, "\n")
+    return all_summaries
 
 
 def summarize(text, topWordsTuples, numWordsToScore = 5):
@@ -245,23 +243,24 @@ def clean_text(text):
 
 
 def main():
-    url1 = 'https://www.bloomberg.com/news/articles/2017-01-06/wall-street-is-starting-to-get-nervous-about-all-the-money-pouring-into-u-s-stocks'
-    url2 = 'https://www.bloomberg.com/news/articles/2017-01-05/japan-shares-to-drop-on-yen-gain-u-s-jobs-loom-markets-wrap'
-    article1 = get_bloomberg_text(url1)
-    article2 = get_bloomberg_text(url2)
+#    url1 = 'https://www.bloomberg.com/news/articles/2017-01-06/wall-street-is-starting-to-get-nervous-about-all-the-money-pouring-into-u-s-stocks'
+#    url2 = 'https://www.bloomberg.com/news/articles/2017-01-05/japan-shares-to-drop-on-yen-gain-u-s-jobs-loom-markets-wrap'
+#    article1 = get_bloomberg_text(url1)
+#    article2 = get_bloomberg_text(url2)
 
-    tokenized_txt1 = remove_stopwords(article1[1])
-    tokenized_txt2 = remove_stopwords(article2[1])
+#    tokenized_txt1 = remove_stopwords(article1[1])
+#    tokenized_txt2 = remove_stopwords(article2[1])
 
-    tagged_txt1 = nltk.pos_tag(tokenized_txt1)
-    tagged_txt2 = nltk.pos_tag(tokenized_txt2)
+#    tagged_txt1 = nltk.pos_tag(tokenized_txt1)
+#    tagged_txt2 = nltk.pos_tag(tokenized_txt2)
     # print "hi"
     # body = [x.find('div', attrs={'class': 'body-copy'}) for x in article]
     # text_w_tags = body.find_all('p')
     # text = [x.get_text() for x in text_w_tags]
-    print(article1)
-    print(tokenized_txt1)
+#    print(article1)
+#    print(tokenized_txt1)
 
+    usatoday = usaToday_top_summary()
     # docs = [tokenized_txt2]
     # dictionary = corpora.Dictionary(docs)
     # doc_term_matrix = [dictionary.doc2bow(doc) for doc in docs]
