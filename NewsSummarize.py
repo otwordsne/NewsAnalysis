@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 #import nltk
 #from nltk.tokenize import word_tokenize
 from nltk.tokenize import RegexpTokenizer
-#from gensim.summarization import summarize
 import re
 import requests
 import urllib.request
@@ -22,17 +21,20 @@ stopwords = set(['a', 'an', 'and', 'are', 'as', 'at', 'be', 'by',
                 'this', 'these', 'their', 'theirs', 'them', 'we'])
 
 def get_soup(url):
-    #opener = AppURLopener()
+    '''
+    Get the html data from the url
+    '''
     req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-
     html = urllib.request.urlopen(req)
-    #response = opener.open(url)
     soup = BeautifulSoup(html)
     return soup
 
-# ul class = "hfwmm-list hfwmm-4uphp-list-hfwmm-light-list", data-track-previs = "flex4uphphero"
+
 def get_usatoday_headlines(url="http://www.usatoday.com"):
-    # html = urllib.urlopen(url)
+    '''
+    Retrieve the top headlines and articles currently on usatoday. 
+    Returns a tuple of two lists, one for headlines and one for the cleaned article texts.
+    '''
     soup = get_soup(url)
     headlines = soup.find('ul', attrs = {"class":"hfwmm-list hfwmm-4uphp-list hfwmm-light-list"})
 
@@ -43,10 +45,11 @@ def get_usatoday_headlines(url="http://www.usatoday.com"):
     extensions = headlines.findAll("a")
     top_article_links = [story['href'] for story in extensions if "watch-live" not in story['href']]
     headline_urls = [url + exten for exten in top_article_links if not exten.startswith("http")]
-    headline_soups = [get_soup(link) for link in headline_urls]
+    headline_soups = [get_soup(link) for link in headline_urls]  # retrieve the html for each headline
+    headline_titles = [soup.find("h1").get_text() for soup in headline_soups]
     headline_texts = [" ".join([ptag.get_text() for ptag in s.findAll("p")]) for s in headline_soups]
     cleaned_texts = [strip_usatoday(article) for article in headline_texts]
-    return cleaned_texts
+    return (headline_titles, cleaned_texts)
 
 # Remove irrelevant text from the usatoday article text
 def strip_usatoday(text):
@@ -136,12 +139,12 @@ def get_all_bloomberg(main_extensions = ['politics', 'markets', 'technology']):
 
 def keep_words(text):
     text = text.lower()
-    text = re.sub('s&p 500', 's&p500', text)
+    text = re.sub('s&p 500', 'sp500', text)
     return text
 
 # Removes the stopwords from
 def remove_stopwords(text):
-    text = keep_words(text)
+    #text = keep_words(text)
     stop = stopwords
     text = text.lower()
     tokenizer = RegexpTokenizer(r'\w+\&*\w*')
@@ -150,18 +153,22 @@ def remove_stopwords(text):
 
 # Split text by sentence
 def splitBySentence(text):
-    endPunc = re.compile('[.!]')
+    endPunc = re.compile('(?<![US])[.!?]') #(?=\s+[A-Z])')
     sentList = endPunc.split(text)
     return sentList
 
 # Count the number of words occurrences in the tokenized text
 def countWords(tokenizedText):
     wordCounts = {}
+    totalCount = len(tokenizedText)
     for word in tokenizedText:
         if word in wordCounts.keys():
             wordCounts[word] += 1
         else:
             wordCounts[word] = 1
+    # Convert counts to percentage of the total
+    for key in wordCounts:
+        wordCounts[key] = wordCounts[key]/ totalCount
     wordCounts = sorted(wordCounts.items(), key=operator.itemgetter(1), reverse = True)
     return wordCounts
 
@@ -211,10 +218,10 @@ def summarizeByTopWords(text, topWords, sentsInSummary = 3):
                 topSents[sent] = sentScores[sent]
                 del topSents[minSent[0]]
     return '. '.join(list(topSents.keys()))
-            
+
+# Summarize a text            
 # wordCountDict is sorted descending order
-def summary(text, numWordsToUse = 5, sentsInSummary = 3):
-    #if numWordsToUse < 1:
+def summary(text, numWordsToUse = 8, sentsInSummary = 3):
     assert(numWordsToUse > 1), "Number of words to score with must be greater than 1."
     assert(sentsInSummary > 0), "Number of sentences in summary must be at least 1."
     wordCountDict = countWords(text)
@@ -226,13 +233,18 @@ def summary(text, numWordsToUse = 5, sentsInSummary = 3):
 # Get a summary of all the top headlines in USA Today
 def usaToday_top_summary():
     usatoday_stories = get_usatoday_headlines()
-    all_summaries = [summary(story) for story in usatoday_stories]
-    for summ in all_summaries:
-        print(summ, "\n")
-    return all_summaries
+    headlines = usatoday_stories[0]
+    articles = usatoday_stories[1]
+    all_summaries = [summary(article) for article in articles]
+    return dict(zip(headlines,all_summaries))
+    #for i in range(len(all_summaries)):
+    #    print(headlines[i], "\n")
+    #return all_summaries
 
-
-def summarize(text, topWordsTuples, numWordsToScore = 5):
+'''
+  Summarize a text by the top words. topWordsTuples is a list of tuples of words and their weights
+'''
+def summarize(text, topWordsTuples, numWordsToScore = 10):
     return summarizeByTopWords(text,[word[0] for word in topWordsTuples[0:numWordsToScore]]) 
         
 
@@ -259,8 +271,21 @@ def main():
     # text = [x.get_text() for x in text_w_tags]
 #    print(article1)
 #    print(tokenized_txt1)
-
+    
+    # get the dict of headlines and summaries
     usatoday = usaToday_top_summary()
+    count = 1;
+    summary_num = [""] * len(usatoday)
+    for headline in usatoday:
+        summary_num[count-1] = usatoday[headline]
+        print(count, ": ", headline)
+        count += 1
+
+    article_num = input("\nWhich articles do you want a summary for? (i.e. 1,2,3)\n")
+    article_num = re.findall(r"\d+", article_num)
+    for i in article_num:
+        print("Article ", i, "\n", summary_num[int(i)-1])
+    
     # docs = [tokenized_txt2]
     # dictionary = corpora.Dictionary(docs)
     # doc_term_matrix = [dictionary.doc2bow(doc) for doc in docs]
